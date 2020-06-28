@@ -1,0 +1,622 @@
+######################################################
+######################################################
+######## FLUSH & INIT SPRITE & INIT HITBOX ###########
+######################################################
+######################################################
+
+STATE_00:
+
+# Flushen des Bildschirms
+IMM 0x0
+LDI R0, 0x2
+LDI R1, 0x7
+ST R0, R1
+CLR R0
+CLR R1
+LDI R0, 0d0
+LDI R1, 0d0
+STV R0, R1
+CLR R0
+CLR R1
+
+# Zu indirekter Adressierung ändern
+IMM 0x0
+LDI R0, 0x1
+LDI R1, 0x7
+ST R0, R1
+CLR R0
+CLR R1
+
+# Initialisieren des Sprite
+# R0 adresse des ersten sprite vektors
+# R1 Bitvektor für das aussehen des sprites
+# R2 Counter - R3 Schranke
+
+LDI R0, 0d65520
+IMM 0x0
+LDI R1, 0b11111111
+IMM 0x0
+LDI R2, 0d0
+LDI R3, 0d8
+SPRITE_INIT_LOOP:
+CP R2, R3
+BRGE END_SPRITE_INIT_LOOP
+ST R1, R0
+INC R0
+INC R2
+JMP SPRITE_INIT_LOOP
+END_SPRITE_INIT_LOOP:
+CLR R0
+CLR R1
+CLR R2
+CLR R3
+
+IMM 0x0
+LDI R0, 0d65528
+IMM 0x0
+LDI R1, 0d0
+ST R1, R0
+INC R0
+ST R1, R0
+CLR R0
+CLR R1
+IMM 0x0
+LDI R20, 0d0
+LDI R21, 0d0
+LDI R25, 0d0
+LDI R26, 0d0
+
+IMM 0x000
+LDI R0, 0x1
+LDI R1, 0x7
+ST R0, R1
+
+IMM 0x0
+LDI R0, 0d0
+MOV R28, R0
+IMM 0x0
+LDI R1, 0d0
+MOV R29, R1
+
+
+IMM 0x0
+LDI R10, 0x0
+
+IMM 0x0
+LDI R11, 0x0
+
+IMM 0x0
+LDI R12, 0d10
+IMM 0x0
+
+xIteration:
+CP R10, R12
+BRGE END
+
+
+# setze vertikalen Counter auf 0
+IMM 0x0
+LDI R11, 0x0	
+
+yIteration:
+
+# Die nächsten 10 Pixel nach rechts werden angemalt
+
+
+CP R11, R12
+BRGE yIterationOver
+
+
+# R2 speichert die Kombination der beiden Koordinaten:
+# R2 = 256*(R0 + R10) v (R1 + R11)
+
+IMM 0x0
+MOV R2, R1
+IMM 0x0
+ADD R2, R11
+IMM 0x0
+MOV R30, R0
+IMM 0x0
+ADD R30, R10
+IMM 0x0
+LDI R31, 0d256
+IMM 0x0
+MUL R30, R31
+IMM 0x0
+OR R2, R30
+
+IMM 0x0
+# 1 = Blau, 2 = Grün, 3 = Cyan, 4 = Rot, 5 = Magenta, 
+# 6 = Gelb, 7 Weiß, andere Zahl = Schwarz
+LDI R3, 0d1
+STV R3, R2
+INC R11
+JMP yIteration
+
+yIterationOver:
+INC R10
+JMP xIteration
+
+
+End:
+JMP STATE_10
+
+STATE_01:
+
+
+######################################################
+######################################################
+########### VERGLEICH HITBOX SPRITEBOX ###############
+######################################################
+######################################################
+
+
+# HITBOX KOORDINATEN:
+# R28 <=> X
+# R29 <=> Y
+
+# Laden der Spritebox Adressen in R8 / R9
+IMM 0x0
+LDI R8, 0d65528
+IMM 0x0
+LDI R9, 0d65529
+
+# Laden der Adressen in Zwischenregister
+LD R24, R8
+LD R25, R9
+# Inkrementieren um in Mitte der Hitbox zu kommen
+DEC R24
+DEC R25
+
+# vergleich
+CP R24, R28
+BRNE STATE_10
+CP R25, R29
+BRNE STATE_10
+
+
+
+#####################################################
+#####################################################
+###### Berechnen und zeichnen neue Hitbox ###########
+#####################################################
+#####################################################
+
+# 1. Flushe Bildschirm
+
+# Flushen des Bildschirms
+IMM 0x0
+LDI R0, 0x2
+LDI R1, 0x7
+ST R0, R1
+CLR R0
+CLR R1
+LDI R0, 0d0
+LDI R1, 0d0
+STV R0, R1
+CLR R0
+CLR R1
+
+
+
+# 2. Berechne neue Koordinaten (Zufallszahlen)
+
+
+################################################
+################################################
+############## 1. Zufallsgenerator #############
+################################################
+################################################
+
+
+# Setze Hitbox X-Koordinate aus R28
+IMM 0x0
+ADI R28, 0b1010101010
+
+# Setze obere Schranke
+IMM 0x0
+LDI R18, 0d140
+
+CheckBoundaries:
+CP R28, R18
+BRG TooBig
+# Zahl ist unter Schranke
+
+JMP RNG2
+
+TooBig:
+
+# Zahl zu groß
+# LFSR Operation:
+IMM 0x0
+LDI R15, 0b000000000000100
+IMM 0x0
+LDI R16, 0x0
+AND R15, R28
+CP R15, R16
+BRG FirstBitSet
+# erstes Bit nicht gesetzt
+IMM 0x0
+LDI R15, 0x0
+JMP BA2
+
+FirstBitSet:
+# erstes Bit gesetzt
+IMM 0x0
+LDI R15, 0x1
+
+BA2:
+
+IMM 0x0
+LDI R17, 0b0010000000000000
+AND R17, R28
+CP R17, R16
+BRG SecondBitSet
+# hier falls nicht gesetzt 
+IMM 0x0
+LDI R17, 0x0
+JMP BS1
+
+SecondBitSet:
+IMM 0x0
+LDI R17, 0x1
+
+BS1:
+LSL R28
+XOR R15, R17
+ADD R28, R15
+CLR R15
+CLR R16
+CLR R17
+
+JMP CheckBoundaries
+
+# Abgriff des dritten Bits für das 2. XOR
+IMM 0x0
+LDI R15, 0b000000010000000
+IMM 0x0
+LDI R16, 0x0
+AND R15, R28
+CP R15, R16
+BRG ThirdBitSet
+# erstes Bit nicht gesetzt
+IMM 0x0
+LDI R15, 0x0
+JMP BA4
+
+ThirdBitSet:
+# erstes Bit gesetzt
+IMM 0x0
+LDI R15, 0x1
+
+BA4:
+
+IMM 0x0
+LDI R17, 0b0000100000000000
+AND R17, R28
+CP R17, R16
+BRG FourthBitSet
+# hier falls nicht gesetzt 
+IMM 0x0
+LDI R17, 0x0
+JMP BS2
+
+FourthBitSet:
+IMM 0x0
+LDI R17, 0x1
+
+BS2:
+LSL R28
+XOR R15, R17
+ADD R28, R15
+CLR R15
+CLR R16
+CLR R17
+
+JMP CheckBoundaries
+
+################################################
+################################################
+############## 2. Zufallsgenerator #############
+################################################
+################################################
+RNG2:
+
+# Setze Hitbox X-Koordinate aus R29
+IMM 0x0
+ADI R29, 0b1011100011001
+         
+# Setze obere Schranke
+IMM 0x0
+LDI R18, 0d100
+
+CheckBoundariesY:
+CP R29, R18
+BRG TooBigY
+# Zahl ist unter Schranke
+
+JMP DrawNewHitbox
+
+TooBigY:
+# Zahl zu groß
+# LFSR Operation:
+IMM 0x0
+LDI R15, 0b000010000000000
+IMM 0x0
+LDI R16, 0x0
+AND R15, R29
+CP R15, R16
+BRG FirstBitSetY
+# erstes Bit nicht gesetzt
+IMM 0x0
+LDI R15, 0x0
+JMP BA2Y
+
+FirstBitSetY:
+# erstes Bit gesetzt
+IMM 0x0
+LDI R15, 0x1
+
+BA2Y:
+
+IMM 0x0
+LDI R17, 0b1000000000000000
+AND R17, R29
+CP R17, R16
+BRG SecondBitSetY
+# hier falls nicht gesetzt 
+IMM 0x0
+LDI R17, 0x0
+JMP BS1Y
+
+SecondBitSetY:
+IMM 0x0
+LDI R17, 0x1
+
+BS1Y:
+LSL R29
+XOR R15, R17
+ADD R29, R15
+CLR R15
+CLR R16
+CLR R17
+JMP CheckBoundariesY
+
+# Abgriff des dritten Bits für das 2. XOR
+
+IMM 0x0
+LDI R15, 0b000000010000000
+IMM 0x0
+LDI R16, 0x0
+AND R15, R28
+CP R15, R16
+BRG ThirdBitSetY
+# erstes Bit nicht gesetzt
+IMM 0x0
+LDI R15, 0x0
+JMP BA4Y
+
+ThirdBitSetY:
+# erstes Bit gesetzt
+IMM 0x0
+LDI R15, 0x1
+
+BA4Y:
+
+IMM 0x0
+LDI R17, 0b0000100000000000
+AND R17, R28
+CP R17, R16
+BRG FourthBitSetY
+# hier falls nicht gesetzt 
+IMM 0x0
+LDI R17, 0x0
+JMP BS2Y
+
+FourthBitSetY:
+IMM 0x0
+LDI R17, 0x1
+
+BS2Y:
+LSL R28
+XOR R15, R17
+ADD R29, R15
+CLR R15
+CLR R16
+CLR R17
+
+JMP CheckBoundariesY
+
+
+DrawNewHitbox:
+
+#####################################################
+# Aktivieren der indirekten Adressierung von Pixeln #
+#####################################################
+
+IMM 0x000
+LDI R0, 0x1
+LDI R1, 0x7
+ST R0, R1
+
+# R10 ist der X-Counter beim Zeichnen
+# R11 ist der Y-Counter beim Zeichnen
+# R12 bleibt konstant bei 10 und bildet die Iterationsgrenze
+# R2 speichert die Kombination der Koordinaten
+
+
+#####################################################
+######## Setzen der Ursprungskoordinaten ############
+#####################################################
+
+IMM 0x0
+MOV R0, R28
+IMM 0x0
+MOV R1, R29
+
+
+#####################################################
+########### Initialisieren der Counter ##############
+#####################################################
+
+# setze horizontalen Counter auf 0
+IMM 0x0
+LDI R10, 0x0
+
+# setze vertikalen Counter auf 0
+IMM 0x0
+LDI R11, 0x0
+
+# setze die Größe des Quadrats
+IMM 0x0
+LDI R12, 0d10
+IMM 0x0
+
+
+#####################################################
+################ X - LOOP zum Zeichnen ##############
+#####################################################
+
+xIteration2:
+CP R10, R12
+BRGE STATE_01
+
+#####################################################
+################ Y - LOOP zum Zeichnen ##############
+#####################################################
+
+# setze vertikalen Counter auf 0
+IMM 0x0
+LDI R11, 0x0	
+
+yIteration2:
+
+# Die nächsten 10 Pixel nach rechts werden angemalt
+
+
+CP R11, R12
+BRGE yIterationOver2
+
+
+# R2 speichert die Kombination der beiden Koordinaten:
+# R2 = 256*(R0 + R10) v (R1 + R11)
+
+#####################################################
+################## Färben der Pixel #################
+#####################################################
+IMM 0x0
+MOV R2, R1
+IMM 0x0
+ADD R2, R11
+IMM 0x0
+MOV R30, R0
+IMM 0x0
+ADD R30, R10
+IMM 0x0
+LDI R31, 0d256
+IMM 0x0
+MUL R30, R31
+IMM 0x0
+OR R2, R30
+
+#####################################################
+##### Hier kann die Farbe ausgesucht werden #########
+#####################################################
+
+IMM 0x0
+# 1 = Blau, 2 = Grün, 3 = Cyan, 4 = Rot, 5 = Magenta, 
+# 6 = Gelb, 7 Weiß, andere Zahl = Schwarz
+LDI R3, 0d1
+STV R3, R2
+INC R11
+JMP yIteration2
+
+yIterationOver2:
+INC R10
+JMP xIteration2
+
+
+# 3. Zeichne Hitbox an neuen Koordinaten
+
+# Koordinate für neue Hitbox in R28
+
+
+# 4. Springe zurück in die Button Loop
+
+# zurück zum Clicken
+JMP STATE_10
+
+
+
+######################################################
+######################################################
+############# STATE_10 (BUTTON LOOP) #################
+######################################################
+######################################################
+# !ACHTUNG!
+# - nicht editieren/verändern
+# - Verwendet die Register R0,R1,R2,R3,R4,R5,R6 temporär
+########################################################
+STATE_10:
+IMM 0x000
+LDI R0, 0x3
+LDI R2, 0x1
+LDI R4, 0xFFF8
+LDI R5, 0xFFF9
+CLR R6
+
+# Polling Abfrage der Taster 
+BUTTON_LOOP:
+LD  R1,R0
+LD  R3,R2
+XOR R3,R1
+CP  R3,R6
+BRE BUTTON_LOOP
+
+# Analyse der Taster BT_0 - BT_1
+ST  R1, R2
+IMM 0x000
+LDI R3,0x1
+CP R1,R3 
+BRE BT_0
+IMM 0x000
+LDI R3,0x2
+CP R1,R3 
+BRE BT_1
+IMM 0x000
+LDI R3,0x4
+CP R1,R3 
+BRE BT_2
+IMM 0x000
+LDI R3,0x8
+CP R1,R3 
+BRE BT_3
+jmp BUTTON_LOOP
+
+# Routine für Button BT_0
+BT_0:
+LD R3,R4
+INC R3
+ST R3,R4
+jmp STATE_01
+
+# Routine für Button BT_1
+BT_1:
+LD R3,R4
+DEC R3
+ST R3,R4
+jmp STATE_01
+
+# Routine für Button BT_2
+BT_2:
+LD R3,R5
+INC R3
+ST R3,R5
+jmp STATE_01
+
+# Routine für Button BT_3
+BT_3:
+LD R3,R5
+DEC R3
+ST R3,R5
+jmp STATE_01
